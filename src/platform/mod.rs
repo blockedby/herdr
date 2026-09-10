@@ -341,6 +341,11 @@ pub(crate) fn interactive_unix_shell_command(
     };
     let mut parts = argv.iter();
     let mut command = quote(parts.next()?);
+    if is_powershell_process_name(shell_name) && command.starts_with('\'') {
+        // A quoted executable is a string expression in PowerShell unless
+        // invoked with the call operator (notably custom launcher paths).
+        command.insert_str(0, "& ");
+    }
     for part in parts {
         command.push(' ');
         command.push_str(&quote(part));
@@ -584,6 +589,20 @@ mod tests {
         assert_eq!(
             interactive_shell_command(&argv, "pwsh").as_deref(),
             Some("pi '' 'two words' 'a''b' '$HOME' 'semi;colon' '@options'")
+        );
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn custom_pipi_path_is_invoked_in_unix_powershell() {
+        let argv = vec![
+            "/opt/my tools/pipi".into(),
+            "--session".into(),
+            "a'b;$HOME".into(),
+        ];
+        assert_eq!(
+            interactive_shell_command(&argv, "pwsh").as_deref(),
+            Some("& '/opt/my tools/pipi' '--session' 'a''b;$HOME'")
         );
     }
 

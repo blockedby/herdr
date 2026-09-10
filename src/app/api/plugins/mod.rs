@@ -3125,6 +3125,7 @@ action = "missing"
         let _ = app.handle_pane_report_agent(
             "report".into(),
             crate::api::schema::PaneReportAgentParams {
+                resume_launcher: None,
                 pane_id: pane_public.clone(),
                 source: "test".into(),
                 agent: "codex".into(),

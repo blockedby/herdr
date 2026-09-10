@@ -6501,6 +6501,7 @@ fn stale_api_agent_report_does_not_forward_done_sound() {
         request: api::schema::Request {
             id: "stale".into(),
             method: api::schema::Method::PaneReportAgent(api::schema::PaneReportAgentParams {
+                resume_launcher: None,
                 pane_id: public_pane_id,
                 source: "herdr:pi".into(),
                 agent: "pi".into(),

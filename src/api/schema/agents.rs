@@ -227,6 +227,8 @@ pub struct AgentInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AgentSessionInfo {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_launcher: Option<String>,
     pub source: String,
     pub agent: String,
     pub kind: crate::agent_resume::AgentSessionRefKind,

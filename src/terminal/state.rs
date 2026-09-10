@@ -652,6 +652,19 @@ impl TerminalState {
         {
             return None;
         }
+        let session_ref = session_ref
+            .map(|session| self.preserve_resume_launcher(&source, &agent_label, session))
+            .or_else(|| {
+                let (old_source, old_agent, kind, value, resume_launcher) =
+                    self.current_session_identity_for_persistence()?;
+                // Preserve labeled Pipi identity through legacy state-only reports.
+                (old_source == source && old_agent == agent_label && resume_launcher.is_some())
+                    .then_some(crate::agent_resume::AgentSessionRef {
+                        kind,
+                        value,
+                        resume_launcher,
+                    })
+            });
         let reanchor_sequence = match self.route_full_lifecycle_hook_report(
             &source,
             &agent_label,
@@ -1229,6 +1242,27 @@ impl TerminalState {
             })
     }
 
+    fn preserve_resume_launcher(
+        &self,
+        source: &str,
+        agent: &str,
+        mut incoming: crate::agent_resume::AgentSessionRef,
+    ) -> crate::agent_resume::AgentSessionRef {
+        if let Some((old_source, old_agent, kind, value, launcher)) =
+            self.current_session_identity_for_persistence()
+        {
+            if old_source == source
+                && old_agent == agent
+                && kind == incoming.kind
+                && value == incoming.value
+                && launcher.is_some()
+            {
+                incoming.resume_launcher = launcher;
+            }
+        }
+        incoming
+    }
+
     fn current_session_identity_for_persistence(
         &self,
     ) -> Option<(
@@ -1236,6 +1270,7 @@ impl TerminalState {
         String,
         crate::agent_resume::AgentSessionRefKind,
         String,
+        Option<String>,
     )> {
         if let Some(authority) = self.hook_authority.as_ref() {
             if let Some(session_ref) = authority.session_ref.as_ref() {
@@ -1244,6 +1279,7 @@ impl TerminalState {
                     authority.agent_label.clone(),
                     session_ref.kind,
                     session_ref.value.clone(),
+                    session_ref.resume_launcher.clone(),
                 ));
             }
         }
@@ -1253,13 +1289,14 @@ impl TerminalState {
                 session.agent.clone(),
                 session.session_ref.kind,
                 session.session_ref.value.clone(),
+                session.session_ref.resume_launcher.clone(),
             )
         })
     }
 
     fn current_session_owner_conflicts(&self, source: &str, agent_label: &str) -> bool {
         self.current_session_identity_for_persistence().is_some_and(
-            |(current_source, current_agent, _, _)| {
+            |(current_source, current_agent, _, _, _)| {
                 current_source != source || current_agent != agent_label
             },
         )
@@ -1273,7 +1310,7 @@ impl TerminalState {
         session_start_source: Option<&str>,
     ) -> Option<crate::agent_resume::AgentSessionRef> {
         self.current_session_identity_for_persistence().and_then(
-            |(current_source, current_agent, current_kind, current_value)| {
+            |(current_source, current_agent, current_kind, current_value, resume_launcher)| {
                 (current_source == source
                     && current_agent == agent_label
                     && current_kind == crate::agent_resume::AgentSessionRefKind::Id
@@ -1287,6 +1324,7 @@ impl TerminalState {
                 .then_some(crate::agent_resume::AgentSessionRef {
                     kind: current_kind,
                     value: current_value,
+                    resume_launcher,
                 })
             },
         )
@@ -1395,7 +1433,7 @@ impl TerminalState {
         seq: Option<u64>,
         session_start_source: Option<String>,
     ) -> Option<TerminalStateMutation> {
-        let session_ref = session_ref?;
+        let session_ref = self.preserve_resume_launcher(&source, &agent_label, session_ref?);
         let known_agent = crate::detect::parse_agent_label(&agent_label);
         let process_present = known_agent.is_some()
             && self.detected_agent == known_agent
@@ -1532,7 +1570,7 @@ impl TerminalState {
             crate::detect::session_identity_only_integration(&source, &agent_label)
                 && session_replacement_allowed
                 && self.current_session_identity_for_persistence().is_some_and(
-                    |(current_source, current_agent, current_kind, current_value)| {
+                    |(current_source, current_agent, current_kind, current_value, _)| {
                         current_source == source
                             && current_agent == agent_label
                             && current_kind == crate::agent_resume::AgentSessionRefKind::Id
@@ -2227,6 +2265,68 @@ mod tests {
     }
 
     #[test]
+    fn pipi_metadata_survives_both_report_paths_without_leaking_to_new_sessions() {
+        let mut terminal = test_terminal();
+        let mut session =
+            crate::agent_resume::AgentSessionRef::path(test_session_path("pipi.jsonl")).unwrap();
+        session.resume_launcher = Some("pipi".into());
+        anchor_full_lifecycle_session(&mut terminal, Agent::Pi, "herdr:pi", "pi", session.clone());
+        session.resume_launcher = None;
+        assert!(terminal
+            .set_hook_authority_with_session_ref(
+                "herdr:pi".into(),
+                "pi".into(),
+                AgentState::Working,
+                None,
+                Some(session.clone()),
+                Some(1)
+            )
+            .is_some());
+        assert_eq!(
+            terminal
+                .hook_authority
+                .as_ref()
+                .unwrap()
+                .session_ref
+                .as_ref()
+                .unwrap()
+                .resume_launcher
+                .as_deref(),
+            Some("pipi")
+        );
+        assert!(terminal
+            .set_agent_session_ref("herdr:pi".into(), "pi".into(), Some(session), Some(2))
+            .is_some());
+        assert_eq!(
+            terminal
+                .current_session_identity_for_persistence()
+                .unwrap()
+                .4
+                .as_deref(),
+            Some("pipi")
+        );
+        let replacement =
+            crate::agent_resume::AgentSessionRef::path(test_session_path("ordinary.jsonl"))
+                .unwrap();
+        assert!(terminal
+            .set_agent_session_ref_for_session_start(
+                "herdr:pi".into(),
+                "pi".into(),
+                Some(replacement),
+                Some(3),
+                Some("new".into())
+            )
+            .is_some());
+        assert_eq!(
+            terminal
+                .current_session_identity_for_persistence()
+                .unwrap()
+                .4,
+            None
+        );
+    }
+
+    #[test]
     fn managed_agent_readiness_tracks_detection_state() {
         let mut terminal = test_terminal();
         let now = Instant::now();
@@ -2739,6 +2839,7 @@ mod tests {
                 "pi".into(),
                 crate::agent_resume::AgentSessionRefKind::Path,
                 new_session,
+                None,
             ))
         );
     }
@@ -5290,7 +5391,8 @@ mod tests {
                 "herdr:codex".into(),
                 "codex".into(),
                 crate::agent_resume::AgentSessionRefKind::Id,
-                "codex-session".into()
+                "codex-session".into(),
+                None,
             ))
         );
         let late_old_session = terminal.set_hook_authority_with_session_ref(

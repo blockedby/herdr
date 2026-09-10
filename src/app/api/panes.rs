@@ -1539,14 +1539,24 @@ impl App {
         let Some(agent_label) = normalize_reported_agent_label(&params.agent) else {
             return invalid_agent(id);
         };
+        let session_ref = crate::agent_resume::session_ref_from_report(
+            &params.source,
+            &agent_label,
+            params.agent_session_id,
+            params.agent_session_path,
+        );
+        let session_ref = match reported_resume_launcher(
+            &params.source,
+            &agent_label,
+            session_ref,
+            params.resume_launcher,
+        ) {
+            Ok(session_ref) => session_ref,
+            Err(message) => return encode_error(id, "invalid_resume_launcher", message),
+        };
         self.handle_internal_event(crate::events::AppEvent::HookStateReported {
             pane_id,
-            session_ref: crate::agent_resume::session_ref_from_report(
-                &params.source,
-                &agent_label,
-                params.agent_session_id,
-                params.agent_session_path,
-            ),
+            session_ref,
             source: params.source,
             agent_label,
             state: detect_state_from_api(params.state),
@@ -1568,14 +1578,24 @@ impl App {
         let Some(agent_label) = normalize_reported_agent_label(&params.agent) else {
             return invalid_agent(id);
         };
+        let session_ref = crate::agent_resume::session_ref_from_report(
+            &params.source,
+            &agent_label,
+            params.agent_session_id,
+            params.agent_session_path,
+        );
+        let session_ref = match reported_resume_launcher(
+            &params.source,
+            &agent_label,
+            session_ref,
+            params.resume_launcher,
+        ) {
+            Ok(session_ref) => session_ref,
+            Err(message) => return encode_error(id, "invalid_resume_launcher", message),
+        };
         self.handle_internal_event(crate::events::AppEvent::AgentSessionReported {
             pane_id,
-            session_ref: crate::agent_resume::session_ref_from_report(
-                &params.source,
-                &agent_label,
-                params.agent_session_id,
-                params.agent_session_path,
-            ),
+            session_ref,
             source: params.source,
             agent_label,
             seq: params.seq,
@@ -2194,6 +2214,24 @@ fn split_path_id(idx: usize, path: &[bool]) -> String {
     format!("split_{idx}_{path}")
 }
 
+fn reported_resume_launcher(
+    source: &str,
+    agent: &str,
+    mut session: Option<crate::agent_resume::AgentSessionRef>,
+    launcher: Option<String>,
+) -> Result<Option<crate::agent_resume::AgentSessionRef>, &'static str> {
+    if let Some(launcher) = launcher {
+        if launcher != "pipi" || (source, agent) != ("herdr:pi", "pi") {
+            return Err("resume_launcher must be pipi for a herdr:pi session");
+        }
+        let Some(session) = session.as_mut() else {
+            return Err("resume_launcher requires a valid session reference");
+        };
+        session.resume_launcher = Some(launcher);
+    }
+    Ok(session)
+}
+
 fn invalid_agent(id: String) -> String {
     encode_error(id, "invalid_agent", "agent label must not be empty")
 }
@@ -2207,6 +2245,38 @@ mod tests {
         detect::{Agent, AgentState},
         workspace::Workspace,
     };
+
+    #[test]
+    fn pipi_report_metadata_requires_official_pi_session() {
+        let session = crate::agent_resume::AgentSessionRef::id("session").unwrap();
+        let accepted =
+            reported_resume_launcher("herdr:pi", "pi", Some(session.clone()), Some("pipi".into()))
+                .unwrap()
+                .unwrap();
+        assert_eq!(accepted.resume_launcher.as_deref(), Some("pipi"));
+        assert!(reported_resume_launcher("herdr:pi", "pi", None, Some("pipi".into())).is_err());
+        assert!(reported_resume_launcher(
+            "herdr:codex",
+            "codex",
+            Some(session.clone()),
+            Some("pipi".into())
+        )
+        .is_err());
+        assert!(reported_resume_launcher(
+            "herdr:pi",
+            "pi",
+            Some(session.clone()),
+            Some("evil;command".into())
+        )
+        .is_err());
+        assert_eq!(
+            reported_resume_launcher("herdr:pi", "pi", Some(session), None)
+                .unwrap()
+                .unwrap()
+                .resume_launcher,
+            None
+        );
+    }
 
     fn app_with_test_workspace() -> (App, String) {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();

@@ -111,6 +111,8 @@ pub struct PaneSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneAgentSessionSnapshot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_launcher: Option<String>,
     pub source: String,
     pub agent: String,
     pub kind: crate::agent_resume::AgentSessionRefKind,
@@ -343,6 +345,7 @@ fn capture_tab(
                         agent: authority.agent_label.clone(),
                         kind: session_ref.kind,
                         value: session_ref.value.clone(),
+                        resume_launcher: session_ref.resume_launcher.clone(),
                     });
                 }
             }
@@ -354,6 +357,7 @@ fn capture_tab(
                     agent: session.agent.clone(),
                     kind: session.session_ref.kind,
                     value: session.session_ref.value.clone(),
+                    resume_launcher: session.session_ref.resume_launcher.clone(),
                 })
         });
         panes.insert(
@@ -1100,45 +1104,51 @@ mod tests {
 
     #[test]
     fn capture_contract_tracks_hook_authority_agent_session() {
-        let mut state = state_with_workspaces(&["one"]);
-        let session_path = test_session_path("pi-session.jsonl");
-        let root = state.workspaces[0].tabs[0].root_pane;
-        state.ensure_test_terminals();
-        let terminal_id = state.workspaces[0].tabs[0].panes[&root]
-            .attached_terminal_id
-            .clone();
-        let terminal = state.terminals.get_mut(&terminal_id).unwrap();
-        terminal.set_detected_state(
-            Some(crate::detect::Agent::Pi),
-            crate::detect::AgentState::Idle,
-        );
-        terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
-            source: "herdr:pi".into(),
-            agent: "pi".into(),
-            session_ref: crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap(),
-        });
-        terminal.set_hook_authority_with_session_ref(
-            "herdr:pi".into(),
-            "pi".into(),
-            crate::detect::AgentState::Working,
-            None,
-            crate::agent_resume::AgentSessionRef::path(session_path.clone()),
-            Some(20),
-        );
+        for launcher in [None, Some("pipi".to_string())] {
+            let mut state = state_with_workspaces(&["one"]);
+            let session_path = test_session_path("pi-session.jsonl");
+            let root = state.workspaces[0].tabs[0].root_pane;
+            state.ensure_test_terminals();
+            let terminal_id = state.workspaces[0].tabs[0].panes[&root]
+                .attached_terminal_id
+                .clone();
+            let terminal = state.terminals.get_mut(&terminal_id).unwrap();
+            terminal.set_detected_state(
+                Some(crate::detect::Agent::Pi),
+                crate::detect::AgentState::Idle,
+            );
+            let mut session_ref =
+                crate::agent_resume::AgentSessionRef::path(session_path.clone()).unwrap();
+            session_ref.resume_launcher = launcher.clone();
+            terminal.set_persisted_agent_session(crate::agent_resume::PersistedAgentSession {
+                source: "herdr:pi".into(),
+                agent: "pi".into(),
+                session_ref,
+            });
+            terminal.set_hook_authority_with_session_ref(
+                "herdr:pi".into(),
+                "pi".into(),
+                crate::detect::AgentState::Working,
+                None,
+                crate::agent_resume::AgentSessionRef::path(session_path.clone()),
+                Some(20),
+            );
 
-        let snapshot = capture_from_state(&state);
-        let agent_session = snapshot.workspaces[0].tabs[0].panes[&root.raw()]
-            .agent_session
-            .as_ref()
-            .expect("agent session should be captured");
+            let snapshot = capture_from_state(&state);
+            let agent_session = snapshot.workspaces[0].tabs[0].panes[&root.raw()]
+                .agent_session
+                .as_ref()
+                .expect("agent session should be captured");
 
-        assert_eq!(agent_session.source, "herdr:pi");
-        assert_eq!(agent_session.agent, "pi");
-        assert_eq!(
-            agent_session.kind,
-            crate::agent_resume::AgentSessionRefKind::Path
-        );
-        assert_eq!(agent_session.value, session_path);
+            assert_eq!(agent_session.source, "herdr:pi");
+            assert_eq!(agent_session.agent, "pi");
+            assert_eq!(
+                agent_session.kind,
+                crate::agent_resume::AgentSessionRefKind::Path
+            );
+            assert_eq!(agent_session.value, session_path);
+            assert_eq!(agent_session.resume_launcher, launcher);
+        }
     }
 
     #[test]

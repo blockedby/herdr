@@ -47,6 +47,12 @@
             "kind": {
               "$ref": "#/schemas/event/$defs/AgentSessionRefKind"
             },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "source": {
               "type": "string"
             },
@@ -3007,6 +3013,12 @@
             "pane_id": {
               "type": "string"
             },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "seq": {
               "format": "uint64",
               "minimum": 0,
@@ -3049,6 +3061,12 @@
             },
             "pane_id": {
               "type": "string"
+            },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "seq": {
               "format": "uint64",
@@ -6801,6 +6819,12 @@
             "kind": {
               "$ref": "#/schemas/success_response/$defs/AgentSessionRefKind"
             },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "source": {
               "type": "string"
             },
@@ -10544,6 +10568,11 @@
               "type": "boolean"
             },
             "live_handoff": {
+              "type": "boolean"
+            },
+            "pipi_resume_launcher": {
+              "default": false,
+              "description": "Pi reports may preserve Pipi launcher identity for native restore.",
               "type": "boolean"
             },
             "surface_interest": {

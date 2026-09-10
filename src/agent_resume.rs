@@ -5,11 +5,21 @@ use serde::{Deserialize, Serialize};
 const MAX_SESSION_ID_LEN: usize = 512;
 const MAX_SESSION_PATH_LEN: usize = 4096;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct AgentSessionRef {
     pub kind: AgentSessionRefKind,
     pub value: String,
+    /// Launch metadata, deliberately excluded from conversation identity and deduplication.
+    pub resume_launcher: Option<String>,
 }
+
+impl PartialEq for AgentSessionRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.value == other.value
+    }
+}
+
+impl Eq for AgentSessionRef {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -38,6 +48,7 @@ impl AgentSessionRef {
         valid_session_id(&value).then_some(Self {
             kind: AgentSessionRefKind::Id,
             value,
+            resume_launcher: None,
         })
     }
 
@@ -46,6 +57,7 @@ impl AgentSessionRef {
         valid_session_path(&value).then_some(Self {
             kind: AgentSessionRefKind::Path,
             value,
+            resume_launcher: None,
         })
     }
 }
@@ -138,6 +150,16 @@ pub fn plan(source: &str, agent: &str, session_ref: &AgentSessionRef) -> Option<
         return None;
     }
 
+    // Unknown or misplaced metadata must not silently restore through ordinary Pi.
+    if session_ref
+        .resume_launcher
+        .as_deref()
+        .is_some_and(|launcher| launcher != "pipi" || (source, agent) != ("herdr:pi", "pi"))
+    {
+        tracing::warn!("native agent resume skipped: unsupported launcher metadata");
+        return None;
+    }
+
     let argv = match (source, agent, session_ref.kind) {
         ("herdr:claude", "claude", AgentSessionRefKind::Id) => {
             vec![
@@ -169,7 +191,15 @@ pub fn plan(source: &str, agent: &str, session_ref: &AgentSessionRef) -> Option<
             ]
         }
         ("herdr:pi", "pi", AgentSessionRefKind::Path | AgentSessionRefKind::Id) => {
-            vec!["pi".into(), "--session".into(), session_ref.value.clone()]
+            vec![
+                session_ref
+                    .resume_launcher
+                    .as_deref()
+                    .unwrap_or("pi")
+                    .into(),
+                "--session".into(),
+                session_ref.value.clone(),
+            ]
         }
         ("herdr:omp", "omp", AgentSessionRefKind::Path | AgentSessionRefKind::Id) => {
             // omp resume is `-r, --resume=<value>` (ID prefix or path); it has no
@@ -279,6 +309,23 @@ fn valid_session_path(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pipi_launcher_preserves_conversation_identity_and_pi_default() {
+        let ordinary = AgentSessionRef::id("same-session").unwrap();
+        let mut pipi = ordinary.clone();
+        pipi.resume_launcher = Some("pipi".into());
+        let pi_plan = plan("herdr:pi", "pi", &ordinary).unwrap();
+        let pipi_plan = plan("herdr:pi", "pi", &pipi).unwrap();
+        assert_eq!(pi_plan.argv, ["pi", "--session", "same-session"]);
+        assert_eq!(pipi_plan.argv, ["pipi", "--session", "same-session"]);
+        assert_eq!(pi_plan.dedupe_key, pipi_plan.dedupe_key);
+        assert_eq!(ordinary, pipi);
+        pipi.resume_launcher = Some("unrecognized".into());
+        assert!(plan("herdr:pi", "pi", &pipi).is_none());
+        pipi.resume_launcher = Some("pipi".into());
+        assert!(plan("herdr:codex", "codex", &pipi).is_none());
+    }
 
     fn absolute_test_path(name: &str) -> String {
         std::env::current_dir()

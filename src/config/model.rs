@@ -265,6 +265,8 @@ pub struct TerminalConfig {
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct SessionConfig {
+    /// Executable on the runtime host, not a shell command. Defaults to PATH lookup.
+    pub pipi_resume_executable: String,
     /// Resume supported AI-agent panes into their native conversation sessions
     /// when restoring a Herdr session. Default: true.
     pub resume_agents_on_restore: bool,
@@ -274,6 +276,7 @@ impl Default for SessionConfig {
     fn default() -> Self {
         Self {
             resume_agents_on_restore: true,
+            pipi_resume_executable: "pipi".to_string(),
         }
     }
 }
@@ -1386,6 +1389,18 @@ new_cwd = "~/Projects"
             config.terminal.new_cwd,
             NewTerminalCwdConfig::Path("~/Projects".into())
         );
+    }
+
+    #[test]
+    fn pipi_resume_executable_defaults_and_custom_paths() {
+        assert_eq!(Config::default().session.pipi_resume_executable, "pipi");
+        for executable in ["/opt/my tools/pipi", r"C:\Tools\Pipi\pipi.cmd"] {
+            let config: Config = toml::from_str(&format!(
+                "[session]\npipi_resume_executable = {executable:?}\n"
+            ))
+            .unwrap();
+            assert_eq!(config.session.pipi_resume_executable, executable);
+        }
     }
 
     #[test]

@@ -1408,6 +1408,12 @@
       "title": "Session",
       "keys": [
         {
+          "key": "session.pipi_resume_executable",
+          "type": "string",
+          "default": "\"pipi\"",
+          "description": "Executable for Pipi session restoration on the runtime host. Use a custom path if Pipi is not on that host's PATH; this is not a shell command."
+        },
+        {
           "key": "session.resume_agents_on_restore",
           "type": "boolean",
           "default": "true",
