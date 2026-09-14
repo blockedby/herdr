@@ -795,12 +795,14 @@ fn restore_plan_for_snapshot(
 fn persisted_agent_session_from_snapshot(
     session: &PaneAgentSessionSnapshot,
 ) -> Option<crate::agent_resume::PersistedAgentSession> {
-    crate::agent_resume::session_ref_from_snapshot(
+    let mut persisted = crate::agent_resume::session_ref_from_snapshot(
         &session.source,
         &session.agent,
         session.kind,
         &session.value,
-    )
+    )?;
+    persisted.session_ref.resume_launcher = session.resume_launcher.clone();
+    Some(persisted)
 }
 
 fn restored_terminal_agent_session(
@@ -917,6 +919,41 @@ fn collect_ids_inner(node: &Node, ids: &mut Vec<PaneId>) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn pipi_snapshot_round_trip_selects_launcher_without_changing_legacy_restore() {
+        let legacy = r#"{"source":"herdr:pi","agent":"pi","kind":"id","value":"session"}"#;
+        let mut snapshot: PaneAgentSessionSnapshot = serde_json::from_str(legacy).unwrap();
+        assert_eq!(
+            restore_plan_for_snapshot(&snapshot, true).unwrap().argv[0],
+            "pi"
+        );
+        snapshot.resume_launcher = Some("pipi".into());
+        let encoded = serde_json::to_string(&snapshot).unwrap();
+        let restored: PaneAgentSessionSnapshot = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(
+            restore_plan_for_snapshot(&restored, true).unwrap().argv,
+            ["pipi", "--session", "session"]
+        );
+        assert_eq!(
+            persisted_agent_session_from_snapshot(&restored)
+                .unwrap()
+                .session_ref
+                .resume_launcher
+                .as_deref(),
+            Some("pipi")
+        );
+        snapshot.resume_launcher = Some("future-launcher".into());
+        assert!(restore_plan_for_snapshot(&snapshot, true).is_none());
+        assert_eq!(
+            persisted_agent_session_from_snapshot(&snapshot)
+                .unwrap()
+                .session_ref
+                .resume_launcher
+                .as_deref(),
+            Some("future-launcher")
+        );
+    }
+
     fn test_session_path(name: &str) -> String {
         std::env::current_dir()
             .unwrap()
@@ -1013,6 +1050,7 @@ mod tests {
     fn restore_plan_respects_opt_in_and_allowlist() {
         let pi_session_path = test_session_path("pi-session.jsonl");
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:pi".into(),
             agent: "pi".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1026,6 +1064,7 @@ mod tests {
         );
 
         let unsupported_path = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:claude".into(),
             agent: "claude".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1038,6 +1077,7 @@ mod tests {
     fn restore_plan_selection_suppresses_duplicates() {
         let pi_session_path = test_session_path("pi-session.jsonl");
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:pi".into(),
             agent: "pi".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1060,6 +1100,7 @@ mod tests {
     #[test]
     fn pane_restore_startup_suppresses_history_for_native_agent_resume() {
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:pi".into(),
             agent: "pi".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1085,6 +1126,7 @@ mod tests {
     #[test]
     fn pane_restore_startup_suppresses_history_for_duplicate_native_agent_session() {
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:pi".into(),
             agent: "pi".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1113,6 +1155,7 @@ mod tests {
     #[test]
     fn pane_restore_startup_keeps_history_without_native_agent_resume() {
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:pi".into(),
             agent: "pi".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1139,6 +1182,7 @@ mod tests {
     #[test]
     fn restore_rehydrates_agent_session_metadata() {
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:hermes".into(),
             agent: "hermes".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Id,
@@ -1155,6 +1199,7 @@ mod tests {
     #[test]
     fn restore_does_not_rehydrate_duplicate_agent_session_metadata() {
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            resume_launcher: None,
             source: "herdr:pi".into(),
             agent: "pi".into(),
             kind: crate::agent_resume::AgentSessionRefKind::Path,
@@ -1192,6 +1237,7 @@ mod tests {
                             agent_name: Some("reviewer".into()),
                             managed_agent_kind: Some("opencode".into()),
                             agent_session: Some(super::super::snapshot::PaneAgentSessionSnapshot {
+                                resume_launcher: None,
                                 source: "herdr:opencode".into(),
                                 agent: "opencode".into(),
                                 kind: crate::agent_resume::AgentSessionRefKind::Id,
@@ -1352,6 +1398,7 @@ mod tests {
             agent_name: Some("planner".into()),
             managed_agent_kind: None,
             agent_session: Some(super::super::snapshot::PaneAgentSessionSnapshot {
+                resume_launcher: None,
                 source: "herdr:codex".into(),
                 agent: "codex".into(),
                 kind: crate::agent_resume::AgentSessionRefKind::Id,
@@ -1503,6 +1550,7 @@ mod tests {
                             agent_name: None,
                             managed_agent_kind: None,
                             agent_session: Some(super::super::snapshot::PaneAgentSessionSnapshot {
+                                resume_launcher: None,
                                 source: "herdr:codex".into(),
                                 agent: "codex".into(),
                                 kind: crate::agent_resume::AgentSessionRefKind::Id,

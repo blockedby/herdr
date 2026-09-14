@@ -2991,6 +2991,22 @@ mod tests {
             );
         }
 
+        let custom_dir = base.join("custom tools");
+        fs::create_dir_all(&custom_dir).unwrap();
+        let custom_launcher = custom_dir.join("pipi.cmd");
+        fs::copy(&helper, &custom_launcher).unwrap();
+        let mut pipi_argv = argv.clone();
+        pipi_argv[0] = custom_launcher.to_string_lossy().into_owned();
+        for shell in ["powershell.exe", "cmd.exe"] {
+            let capture = base.join(format!("{shell}-pipi.txt"));
+            let command = super::interactive_shell_command(&pipi_argv, shell).unwrap();
+            assert!(run_command(shell, &command, &capture).success());
+            assert_eq!(
+                fs::read_to_string(capture).unwrap().replace("\r\n", "\n"),
+                "\ntwo words\n100%\nwow!\na'b\n@options\n--model\n"
+            );
+        }
+
         fs::remove_file(helper).unwrap();
         fs::write(
             base.join("pi.ps1"),

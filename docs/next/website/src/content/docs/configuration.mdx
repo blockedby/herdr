@@ -530,7 +530,10 @@ Herdr resumes supported Agent conversations after a server restart by default:
 ```toml
 [session]
 resume_agents_on_restore = true
+pipi_resume_executable = "pipi"
 ```
+
+Sessions explicitly identified by the Pipi-owned reporter resume through `pipi`; ordinary Pi sessions still use `pi`. Set `pipi_resume_executable` to a custom executable path if needed, not a shell command. On SSH/Cloud, configure and install the launcher on the remote runtime host. Windows requires a launcher supported by that host's shell. A missing Pipi launcher does not fall back to ordinary Pi. Older sessions without the Pipi marker keep the existing Pi behavior; restore known old Pipi sessions manually. Use the Pipi-owned reporter alone, not an additional official Pi reporter.
 
 Only panes with a valid native session reference from an official integration can resume; other panes restore as normal shells. See [Session state and restore](/docs/session-state/) for supported Agents and persistence behavior.
 

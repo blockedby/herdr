@@ -526,7 +526,10 @@ kitty_graphics = false
 ```toml
 [session]
 resume_agents_on_restore = true
+pipi_resume_executable = "pipi"
 ```
+
+由 Pipi 专用上报器明确标记的会话通过 `pipi` 恢复，普通 Pi 会话仍使用 `pi`。需要时可将 `pipi_resume_executable` 设为自定义可执行文件路径，而不是 shell 命令。对于 SSH/Cloud，请在远程运行时主机上配置并安装启动器。Windows 需要该主机 shell 支持的启动器。缺少 Pipi 启动器时不会回退到普通 Pi。没有标记的旧会话保留原有 Pi 行为；已知的旧 Pipi 会话应手动恢复。只使用 Pipi 专用上报器，不要额外安装官方 Pi 上报器。
 
 只有通过官方集成获得有效原生会话引用的窗格才能恢复；其他窗格会作为普通 shell 恢复。有关受支持的智能体和持久化行为，请参阅[会话状态与恢复](/docs/session-state/)。
 

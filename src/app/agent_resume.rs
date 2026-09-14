@@ -217,7 +217,17 @@ impl App {
             return false;
         }
 
-        let Some(resume_command) = shell_command_from_argv(&plan.argv) else {
+        let command =
+            if plan.agent == "pi" && plan.argv.first().is_some_and(|program| program == "pipi") {
+                pipi_resume_command(
+                    &plan.argv,
+                    &self.state.pipi_resume_executable,
+                    &crate::pane::pane_shell(&self.state.default_shell),
+                )
+            } else {
+                shell_command_from_argv(&plan.argv)
+            };
+        let Some(resume_command) = command else {
             tracing::warn!(
                 pane = pane_id.raw(),
                 terminal = %terminal_id,
@@ -321,6 +331,16 @@ fn stable_terminal_inner_rect(pane_inner: Rect) -> Rect {
     )
 }
 
+fn pipi_resume_command(argv: &[String], executable: &str, shell: &str) -> Option<String> {
+    if executable.trim().is_empty() || executable.chars().any(char::is_control) {
+        tracing::warn!("Pipi resume executable is empty or invalid");
+        return None;
+    }
+    let mut argv = argv.to_vec();
+    *argv.first_mut()? = executable.to_string();
+    crate::platform::interactive_shell_command(&argv, shell)
+}
+
 fn shell_command_from_argv(argv: &[String]) -> Option<String> {
     let mut parts = argv.iter();
     let first = shell_quote(parts.next()?);
@@ -351,6 +371,32 @@ fn shell_quote(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pipi_rejects_empty_and_control_character_executables() {
+        let argv = vec!["pipi".into(), "--session".into(), "session".into()];
+        for executable in ["", "  ", "pipi\nother", "pipi\0"] {
+            assert!(pipi_resume_command(&argv, executable, "bash").is_none());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pipi_custom_executable_and_session_are_single_shell_arguments() {
+        let executable = "/custom tools/pipi's launcher";
+        let reference = "session'; echo unsafe; $(other)";
+        let argv = vec!["pipi".into(), "--session".into(), reference.into()];
+        let command = pipi_resume_command(&argv, executable, "bash").unwrap();
+        let output = std::process::Command::new("/bin/sh")
+            .args(["-c", &format!("set -- {command}; printf '%s\\0' \"$@\"")])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(
+            output.stdout,
+            format!("{executable}\0--session\0{reference}\0").into_bytes()
+        );
+    }
 
     #[cfg(unix)]
     fn test_app() -> App {

@@ -499,6 +499,7 @@ impl App {
             cjk_ime_cursor_shape: config.experimental.cjk_ime_cursor_shape.to_decscusr(),
             kitty_graphics_enabled: config.kitty_graphics_enabled(),
             default_shell: config.terminal.default_shell.clone(),
+            pipi_resume_executable: config.session.pipi_resume_executable.clone(),
             shell_mode: config.terminal.shell_mode,
             new_terminal_cwd: config.terminal.new_cwd.clone(),
             pane_scrollback_limit_bytes: config.advanced.scrollback_limit_bytes,
@@ -923,6 +924,7 @@ impl App {
 
         if !invalid_section("terminal") {
             self.state.default_shell = config.terminal.default_shell.clone();
+            self.state.pipi_resume_executable = config.session.pipi_resume_executable.clone();
             self.state.shell_mode = config.terminal.shell_mode;
             self.state.new_terminal_cwd = config.terminal.new_cwd.clone();
         }
