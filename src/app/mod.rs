@@ -500,6 +500,7 @@ impl App {
             cjk_ime_cursor_shape: config.experimental.cjk_ime_cursor_shape.to_decscusr(),
             kitty_graphics_enabled: config.kitty_graphics_enabled(),
             default_shell: config.terminal.default_shell.clone(),
+            pipi_resume_executable: config.session.pipi_resume_executable.clone(),
             shell_mode: config.terminal.shell_mode,
             new_terminal_cwd: config.terminal.new_cwd.clone(),
             pane_scrollback_limit_bytes: config.advanced.scrollback_limit_bytes,
@@ -932,6 +933,10 @@ impl App {
             {
                 self.next_agent_manifest_update_check = Some(now);
             }
+        }
+
+        if !invalid_section("session") {
+            self.state.pipi_resume_executable = config.session.pipi_resume_executable.clone();
         }
 
         if !invalid_section("terminal") {

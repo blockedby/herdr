@@ -47,6 +47,12 @@
             "kind": {
               "$ref": "#/schemas/event/$defs/AgentSessionRefKind"
             },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "source": {
               "type": "string"
             },
@@ -2909,6 +2915,12 @@
             "pane_id": {
               "type": "string"
             },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "resume_argv": {
               "description": "Command that resumes this agent's session after a Herdr restart. The\nfirst element must be a plain command name.",
               "items": {
@@ -2961,6 +2973,12 @@
             },
             "pane_id": {
               "type": "string"
+            },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "resume_argv": {
               "description": "Command that resumes this agent's session after a Herdr restart. The\nfirst element must be a plain command name.",
@@ -6744,6 +6762,12 @@
             "kind": {
               "$ref": "#/schemas/success_response/$defs/AgentSessionRefKind"
             },
+            "resume_launcher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "source": {
               "type": "string"
             },
@@ -10439,6 +10463,11 @@
               "type": "boolean"
             },
             "live_handoff": {
+              "type": "boolean"
+            },
+            "pipi_resume_launcher": {
+              "default": false,
+              "description": "Pi reports may preserve Pipi launcher identity for native restore.",
               "type": "boolean"
             },
             "ssh_agent_registration": {

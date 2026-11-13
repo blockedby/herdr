@@ -3,6 +3,19 @@ use ratatui::layout::Rect;
 use crate::app;
 use crate::protocol::{self, FrameData};
 
+fn pipi_display_agent(agent: &crate::api::schema::AgentInfo) -> Option<String> {
+    agent.display_agent.clone().or_else(|| {
+        (agent.name.is_none()
+            && agent.agent.as_deref() == Some("pi")
+            && agent.agent_session.as_ref().is_some_and(|session| {
+                session.agent == "pi"
+                    && session.source == "herdr:pi"
+                    && session.resume_launcher.as_deref() == Some("pipi")
+            }))
+        .then(|| "pipi".to_owned())
+    })
+}
+
 #[cfg(test)]
 pub(super) fn snapshot(
     app: &app::App,
@@ -152,6 +165,7 @@ pub(super) fn snapshot_with_completions(
         .agents
         .into_iter()
         .map(|agent| {
+            let display_agent = pipi_display_agent(&agent);
             let pane_id = agent.pane_id;
             let focused = focused_pane_id.as_deref() == Some(pane_id.as_str());
             let mut state_labels = agent.state_labels.into_iter().collect::<Vec<_>>();
@@ -163,7 +177,7 @@ pub(super) fn snapshot_with_completions(
                 workspace_id: agent.workspace_id,
                 tab_id: agent.tab_id,
                 name: agent.name,
-                display_agent: agent.display_agent,
+                display_agent,
                 agent: agent.agent,
                 title: agent.title,
                 terminal_title: agent.terminal_title,
@@ -690,6 +704,45 @@ mod tests {
         app.state.integration_recommendations[0].state =
             crate::integration::IntegrationStatusKind::Outdated;
         assert!(snapshot(&app, "boot", 2, None, None).integration_updates_available);
+    }
+
+    #[test]
+    fn pipi_sidebar_label_preserves_wire_identity_and_custom_labels() {
+        let mut agent: crate::api::schema::AgentInfo = serde_json::from_value(serde_json::json!({
+            "terminal_id": "terminal", "agent": "pi", "agent_status": "idle",
+            "workspace_id": "w1", "tab_id": "w1:t1", "pane_id": "w1:p1",
+            "focused": true, "revision": 1,
+            "agent_session": {
+                "agent": "pi", "source": "herdr:pi", "kind": "path",
+                "value": "/tmp/session.jsonl", "resume_launcher": "pipi"
+            }
+        }))
+        .unwrap();
+        let before = serde_json::to_value(&agent).unwrap();
+        assert_eq!(pipi_display_agent(&agent).as_deref(), Some("pipi"));
+        assert_eq!(serde_json::to_value(&agent).unwrap(), before);
+        agent.name = Some("my agent".into());
+        assert_eq!(pipi_display_agent(&agent).as_deref(), None);
+        agent.display_agent = Some("custom display".into());
+        assert_eq!(
+            pipi_display_agent(&agent).as_deref(),
+            Some("custom display")
+        );
+        agent.name = None;
+        agent.display_agent = None;
+        agent.agent_session.as_mut().unwrap().resume_launcher = None;
+        assert_eq!(pipi_display_agent(&agent).as_deref(), None);
+        agent.agent_session.as_mut().unwrap().resume_launcher = Some("unknown".into());
+        assert_eq!(pipi_display_agent(&agent).as_deref(), None);
+        agent.agent_session.as_mut().unwrap().resume_launcher = Some("pipi".into());
+        agent.agent_session.as_mut().unwrap().source = "untrusted".into();
+        assert_eq!(pipi_display_agent(&agent).as_deref(), None);
+        agent.agent_session.as_mut().unwrap().source = "herdr:pi".into();
+        agent.agent = Some("codex".into());
+        assert_eq!(pipi_display_agent(&agent).as_deref(), None);
+        agent.agent_session = None;
+        agent.agent = Some("pi".into());
+        assert_eq!(pipi_display_agent(&agent).as_deref(), None);
     }
 
     #[test]

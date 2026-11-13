@@ -7312,6 +7312,7 @@ fn api_report_agent_stores_valid_resume_argv_and_rejects_invalid() {
         .clone();
     let report = |resume_argv: Vec<&str>| {
         api::schema::Method::PaneReportAgent(api::schema::PaneReportAgentParams {
+            resume_launcher: None,
             pane_id: public_pane_id.clone(),
             source: "prime-agent".into(),
             agent: "prime-agent".into(),
@@ -7373,6 +7374,7 @@ fn api_report_agent_stores_valid_resume_argv_and_rejects_invalid() {
             id: "not-owner".into(),
             method: api::schema::Method::PaneReportAgentSession(
                 api::schema::PaneReportAgentSessionParams {
+                    resume_launcher: None,
                     pane_id: public_pane_id.clone(),
                     source: "custom:intruder".into(),
                     agent: "intruder".into(),
@@ -7415,6 +7417,7 @@ fn api_resume_argv_is_ignored_when_its_session_report_is_refused() {
     });
     let report = |session: &str| {
         api::schema::Method::PaneReportAgentSession(api::schema::PaneReportAgentSessionParams {
+            resume_launcher: None,
             pane_id: public_pane_id.clone(),
             source: "herdr:claude".into(),
             agent: "claude".into(),
@@ -7488,6 +7491,7 @@ fn completion_guard_api_startup_blocker_respects_suppression() {
         completion_guard_api_report(
             &mut server,
             api::schema::Method::PaneReportAgent(api::schema::PaneReportAgentParams {
+                resume_launcher: None,
                 pane_id: public_pane_id.clone(),
                 source: "custom:pi".into(),
                 agent: "pi".into(),
@@ -7554,6 +7558,7 @@ fn completion_guard_api_session_replacement_does_not_notify_finished() {
             completion_guard_api_report(
                 &mut server,
                 Method::PaneReportAgentSession(PaneReportAgentSessionParams {
+                    resume_launcher: None,
                     pane_id: public_pane_id.clone(),
                     source: "herdr:pi".into(),
                     agent: "pi".into(),
@@ -7565,6 +7570,7 @@ fn completion_guard_api_session_replacement_does_not_notify_finished() {
                 }),
             );
             let mut report = PaneReportAgentParams {
+                resume_launcher: None,
                 pane_id: public_pane_id,
                 source: "herdr:pi".into(),
                 agent: "pi".into(),
@@ -7756,6 +7762,7 @@ fn stale_api_agent_report_does_not_forward_done_sound() {
         request: api::schema::Request {
             id: "stale".into(),
             method: api::schema::Method::PaneReportAgent(api::schema::PaneReportAgentParams {
+                resume_launcher: None,
                 pane_id: public_pane_id,
                 source: "herdr:pi".into(),
                 agent: "pi".into(),

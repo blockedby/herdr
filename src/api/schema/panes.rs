@@ -360,6 +360,8 @@ pub struct PaneReadParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PaneReportAgentParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_launcher: Option<String>,
     pub pane_id: String,
     pub source: String,
     pub agent: String,
@@ -380,6 +382,8 @@ pub struct PaneReportAgentParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PaneReportAgentSessionParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume_launcher: Option<String>,
     pub pane_id: String,
     pub source: String,
     pub agent: String,

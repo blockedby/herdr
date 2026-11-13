@@ -21,6 +21,9 @@ pub struct ServerSshAgentRegisterParams {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ServerCapabilities {
+    /// Pi reports may preserve Pipi launcher identity for native restore.
+    #[serde(default)]
+    pub pipi_resume_launcher: bool,
     pub live_handoff: bool,
     #[serde(default)]
     pub detached_server_daemon: bool,

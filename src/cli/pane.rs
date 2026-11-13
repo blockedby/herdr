@@ -1275,6 +1275,7 @@ fn pane_report_agent(args: &[String]) -> std::io::Result<i32> {
     };
 
     super::send_ok_request(Method::PaneReportAgent(PaneReportAgentParams {
+        resume_launcher: None,
         pane_id,
         source,
         agent,
@@ -1401,6 +1402,7 @@ fn pane_report_agent_session(args: &[String]) -> std::io::Result<i32> {
 
     super::send_ok_request(Method::PaneReportAgentSession(
         PaneReportAgentSessionParams {
+            resume_launcher: None,
             pane_id,
             source,
             agent,
